@@ -263,12 +263,12 @@ public class LPBukkitBootstrap implements LuckPermsBootstrap, LoaderBootstrap, B
 
     @Override
     public int getPlayerCount() {
-        return getServer().getOnlinePlayers().size();
+        return getServer().getAllOnlinePlayers().size();
     }
 
     @Override
     public Collection<String> getPlayerList() {
-        Collection<? extends Player> players = getServer().getOnlinePlayers();
+        Collection<? extends Player> players = getServer().getAllOnlinePlayers();
         List<String> list = new ArrayList<>(players.size());
         for (Player player : players) {
             list.add(player.getName());
@@ -278,7 +278,7 @@ public class LPBukkitBootstrap implements LuckPermsBootstrap, LoaderBootstrap, B
 
     @Override
     public Collection<UUID> getOnlinePlayers() {
-        Collection<? extends Player> players = getServer().getOnlinePlayers();
+        Collection<? extends Player> players = getServer().getAllOnlinePlayers();
         List<UUID> list = new ArrayList<>(players.size());
         for (Player player : players) {
             list.add(player.getUniqueId());
