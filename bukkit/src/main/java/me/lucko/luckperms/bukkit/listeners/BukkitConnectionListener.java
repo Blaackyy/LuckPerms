@@ -38,6 +38,7 @@ import me.lucko.luckperms.common.plugin.util.AbstractConnectionListener;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
 
+import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
@@ -45,11 +46,12 @@ import org.bukkit.event.Listener;
 import org.bukkit.event.player.AsyncPlayerPreLoginEvent;
 import org.bukkit.event.player.PlayerLoginEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
+import puregero.multipaper.event.ExternalPlayerAddEvent;
+import puregero.multipaper.event.ExternalPlayerRemoveEvent;
 
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.Set;
-import java.util.UUID;
+import java.lang.ref.WeakReference;
+import java.util.*;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Predicate;
 import java.util.regex.Pattern;
@@ -63,6 +65,8 @@ public class BukkitConnectionListener extends AbstractConnectionListener impleme
 
     private final Set<UUID> deniedAsyncLogin = Collections.synchronizedSet(new HashSet<>());
     private final Set<UUID> deniedLogin = Collections.synchronizedSet(new HashSet<>());
+
+    private final static HashMap<UUID, WeakReference<Player>> playerCache = new HashMap<>();
 
     public BukkitConnectionListener(LPBukkitPlugin plugin) {
         super(plugin);
@@ -78,6 +82,64 @@ public class BukkitConnectionListener extends AbstractConnectionListener impleme
         } else {
             this.detectedCraftBukkitOfflineMode = false;
         }
+    }
+
+    @EventHandler(priority = EventPriority.LOWEST)
+    public void onExternalJoin(ExternalPlayerAddEvent event) {
+
+        UUID uuid = event.getPlayer().getUniqueId();
+        String name = event.getPlayer().getName();
+
+        CompletableFuture.runAsync(() -> {
+            User user = loadUser(uuid, name);
+            recordConnection(uuid);
+            this.plugin.getEventDispatcher().dispatchPlayerLoginProcess(uuid, name, user);
+            playerCache.put(event.getPlayer().getUniqueId(), new WeakReference<>(event.getPlayer()));
+
+            LuckPermsPermissible lpPermissible = new LuckPermsPermissible(event.getPlayer(), user, this.plugin);
+
+            try {
+                PermissibleInjector.inject(event.getPlayer(), lpPermissible, this.plugin.getLogger());
+            } catch (Exception e) {
+                if (e.getMessage() == null || !e.getMessage().contains("LPPermissible already injected into player")) {
+                    e.printStackTrace();
+                }
+            }
+
+            this.plugin.getContextManager().signalContextUpdate(event.getPlayer());
+        });
+    }
+
+    @EventHandler
+    public void onRemoteRemove(ExternalPlayerRemoveEvent event) {
+        UUID uuid = event.getPlayer().getUniqueId();
+        String name = event.getPlayer().getName();
+
+        Player player = Bukkit.getPlayer(uuid);
+        if (player != null) {
+            this.plugin.getLogger().warn("Tried to run quit functions on external player " + name + ", but they are online.");
+            return;
+        }
+
+        WeakReference<Player> playerRef = playerCache.remove(uuid);
+        if (playerRef != null) {
+            player = playerRef.get();
+        }
+
+        if (player == null) {
+            this.plugin.getLogger().warn("Tried to run quit functions on external player " + name + ", but we do not have their Player object cached (" + playerRef + ").");
+            return;
+        }
+
+        try {
+            PermissibleInjector.uninject(player, true);
+        } catch (Exception ex) {
+            this.plugin.getLogger().severe("Exception thrown when unloading permissions from " +
+                    player.getUniqueId() + " - " + player.getName(), ex);
+        }
+
+        // remove their contexts cache
+        this.plugin.getContextManager().onPlayerQuit(player);
     }
 
     private void printCraftBukkitOfflineModeError() {
