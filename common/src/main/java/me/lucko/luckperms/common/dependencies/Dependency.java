@@ -160,13 +160,21 @@ public enum Dependency {
             "IydH+gkk2Iom36QrgSi2+hFAgC2AQSWJFZboyl8pEyI=",
             Relocation.of("postgresql", "org{}postgresql")
     ),
-    H2_DRIVER(
+    H2_DRIVER_LEGACY(
             "com.h2database",
             "h2",
             // seems to be a compat bug in 1.4.200 with older dbs
             // see: https://github.com/h2database/h2database/issues/2078
             "1.4.199",
             "MSWhZ0O8a0z7thq7p4MgPx+2gjCqD9yXiY95b5ml1C4="
+            // we don't apply relocations to h2 - it gets loaded via
+            // an isolated classloader
+    ),
+    H2_DRIVER(
+            "com.h2database",
+            "h2",
+            "2.1.214",
+            "1iPNwPYdIYz1SajQnxw5H/kQlhFrIuJHVHX85PvnK9A="
             // we don't apply relocations to h2 - it gets loaded via
             // an isolated classloader
     ),
@@ -236,6 +244,13 @@ public enum Dependency {
             "jX3340YaYjHFQN2sA+GCo33LB4FuIYKgQUPUv2MK/Xo=",
             Relocation.of("jedis", "redis{}clients{}jedis"),
             Relocation.of("commonspool2", "org{}apache{}commons{}pool2")
+    ),
+    NATS(
+        "io.nats",
+        "jnats",
+        "2.16.4",
+        "/WZgFi9iJToRGIiGoShlwE5aHwstOuNGZyr4UaBRilM=",
+        Relocation.of("nats", "io{}nats{}client")
     ),
     RABBITMQ(
             "com{}rabbitmq",
