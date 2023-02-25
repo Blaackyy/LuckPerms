@@ -46,8 +46,8 @@ import org.bukkit.event.Listener;
 import org.bukkit.event.player.AsyncPlayerPreLoginEvent;
 import org.bukkit.event.player.PlayerLoginEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
-import puregero.multipaper.event.ExternalPlayerAddEvent;
-import puregero.multipaper.event.ExternalPlayerRemoveEvent;
+import puregero.multipaper.event.player.PlayerJoinExternalServerEvent;
+import puregero.multipaper.event.player.PlayerLeaveExternalServerEvent;
 
 import java.lang.ref.WeakReference;
 import java.util.*;
@@ -85,37 +85,38 @@ public class BukkitConnectionListener extends AbstractConnectionListener impleme
     }
 
     @EventHandler(priority = EventPriority.LOWEST)
-    public void onExternalJoin(ExternalPlayerAddEvent event) {
+    public void onExternalJoin(PlayerJoinExternalServerEvent event) {
 
-        UUID uuid = event.getPlayer().getUniqueId();
-        String name = event.getPlayer().getName();
+        UUID uuid = event.getPlayerUniqueId();
+        String name = event.getPlayerName();
+        Player player = Bukkit.getPlayer(uuid);
 
         CompletableFuture.runAsync(() -> {
             User user = loadUser(uuid, name);
             recordConnection(uuid);
             this.plugin.getEventDispatcher().dispatchPlayerLoginProcess(uuid, name, user);
-            playerCache.put(event.getPlayer().getUniqueId(), new WeakReference<>(event.getPlayer()));
+            playerCache.put(uuid, new WeakReference<>(Bukkit.getPlayer(uuid)));
 
-            LuckPermsPermissible lpPermissible = new LuckPermsPermissible(event.getPlayer(), user, this.plugin);
+            LuckPermsPermissible lpPermissible = new LuckPermsPermissible(player, user, this.plugin);
 
             try {
-                PermissibleInjector.inject(event.getPlayer(), lpPermissible, this.plugin.getLogger());
+                PermissibleInjector.inject(player, lpPermissible, this.plugin.getLogger());
             } catch (Exception e) {
                 if (e.getMessage() == null || !e.getMessage().contains("LPPermissible already injected into player")) {
                     e.printStackTrace();
                 }
             }
 
-            this.plugin.getContextManager().signalContextUpdate(event.getPlayer());
+            this.plugin.getContextManager().signalContextUpdate(player);
         });
     }
 
     @EventHandler
-    public void onRemoteRemove(ExternalPlayerRemoveEvent event) {
-        UUID uuid = event.getPlayer().getUniqueId();
-        String name = event.getPlayer().getName();
-
+    public void onRemoteRemove(PlayerLeaveExternalServerEvent event) {
+        UUID uuid = event.getPlayerUniqueId();
+        String name = event.getPlayerName();
         Player player = Bukkit.getPlayer(uuid);
+
         if (player != null) {
             this.plugin.getLogger().warn("Tried to run quit functions on external player " + name + ", but they are online.");
             return;
